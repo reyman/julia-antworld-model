@@ -45,9 +45,22 @@ function to_grid(ant_pos, sugar_model)
     return (Int(discrete_x), Int(discrete_y))
 end
 
-function pos_on_descent( discrete_pos, sugar_model)
+function get_any_xy(discrete_pos,sugar_model)
+    # todo : rng ?
+    front_neighbors = nearby_positions(discrete_pos, sugar_model, 1)
+    return to_continue(first(shuffle!(collect(front_neighbors))),sugar_model)
+end
 
 
+function pos_on_chemical_descent(discrete_pos,sugar_model)
+    front_neighbors = nearby_positions(discrete_pos, sugar_model, 1)
+    #print("front_neighbors =  $front_neighbors \n")
+    val_landscape_neighbors = ((sugar_model.chemical_landscape[x,y], (x,y)) for (x, y) in front_neighbors)
+    result = reduce( (x,y) -> x[1] > y[1] ? x : y , val_landscape_neighbors)
+    return to_continue(result[2], sugar_model)
+end
+
+function pos_on_nest_descent(discrete_pos, sugar_model)
     neighbors = nearby_positions(discrete_pos, sugar_model, 1)
     val_landscape_neighbors = ((sugar_model.nest_descent_landscape[x,y], (x,y)) for (x, y) in neighbors)
     #min_neighbors = minimum(val_landscape_neighbors)

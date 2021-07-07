@@ -13,20 +13,19 @@ end
 
 function setup_ants_world(;
     visual_distance = 5.0,
-    population = 5,
-    speed = 1.0,
+    population = 55,
+    speed = 0.1,
     spacing = visual_distance / 1.5,
     extent = (30, 30),
     seed = 42,
     sugar_model = setup_sugar_world())
 
     myRng = Random.MersenneTwister(seed)
-    ant_space = ContinuousSpace(extent, spacing)
+    ant_space = ContinuousSpace(extent, spacing, periodic = false )
 
     properties = Dict(
     :sugar_model => sugar_model,
     )
-
 
     model = ABM(
     Ants,
@@ -50,12 +49,6 @@ end
 function all_model_step!(ants_model, sugar_model)
     Agents.step!(abmstepper, ants_model, ants_agent_step!, ants_model_step!, 1)
     Agents.step!( sugar_model, sugar_agent_step!, sugar_model_step!, 1)
-end
-
-function check_right_chemical()
-end
-
-function check_left_chemical()
 end
 
 # ANTS AGENT STEP
@@ -85,18 +78,28 @@ function ants_agent_step!(ant, model)
             chemical = sugar_model.chemical_landscape[ipos_x, ipos_y]
             if (chemical >= 0.05) && (chemical < 2)
                 # pos = go to strongest value
+                new_pos = pos_on_chemical_descent(ipos,sugar_model)
+                ant.vel = sign.(new_pos .- ant.pos)
+                move_agent!(ant, model, ant.speed)
             else
                 # pos = random move
-                move_agent!(ant, model)
+                new_pos = get_any_xy(ipos,sugar_model)
+                ant.vel = new_pos .- ant.pos
+                move_agent!(ant, model, ant.speed)
             end
         end
 
     else
-
-        new_pos = pos_on_descent(ipos, sugar_model)
-        move_agent!(ant, new_pos, model)
+        new_pos = pos_on_nest_descent(ipos, sugar_model)
+        ant.vel = sign.(new_pos .- ant.pos)
+        #if (atan(ant.vel[2], ant.vel[1])) != 0.0
+        #    print("rotate to angle :  $(atan(ant.vel[2], ant.vel[1])) \n")
+        #end
+        sugar_model.chemical_landscape[ipos_x, ipos_y] += 60.0
+        move_agent!(ant, model, ant.speed)
        #pos_x, pos_y = ant.pos
        if sugar_model.is_nest_landscape[ipos_x,ipos_y] == 1
+          print("I'm back to nest")
           ant.state = 0
        end
     end
@@ -117,7 +120,7 @@ using InteractiveDynamics
 
 ## DISPLAY ##
 
-const ants_polygon = Polygon(Point2f0[(-0.5, -0.5), (1, 0), (-0.5, 0.5)])
+const ants_polygon = Polygon(Point2f0[(-0.2, -0.2), (0.5, 0), (-0.2, 0.2)])
 function ants_marker(b::Ants)
    φ = atan(b.vel[2], b.vel[1]) #+ π/2 + π
    scale(rotate2D(ants_polygon, φ), 2)
@@ -125,6 +128,7 @@ end
 
 plotkwargs = (
     am = ants_marker,
+    ac=:red,
 )
 fig, abmstepper = abm_plot(model; resolution = (800, 600), plotkwargs...)
 obs_sugar = Observable(model.sugar_model.sugar_landscape)
@@ -145,13 +149,11 @@ Colorbar(fig[1, 3], hm, width = 20,tellheight=false)
 rowsize!(fig.layout, 1 , ax.scene.px_area[].widths[2])
 fig
 
-## MOVE ##
-
 # TIPS
 # map tuple julia> map( t -> ((z,(x,y)) = t; (Float16(x), Float16(y))), u)
 
-record(fig, "ants.mp4"; framerate = 3) do io
-    for j in 0:100 # = total number of frames
+record(fig, "ants.mp4"; framerate = 20) do io
+    for j in 0:300 # = total number of frames
         recordframe!(io) # save current state
         # This updates the abm plot:
         all_model_step!(model, model.sugar_model)

@@ -9,12 +9,13 @@ mutable struct Ants <: AbstractAgent
     vel::NTuple{2,Float64}
     speed::Float64
     state::Int # 0 Look for food ; 1 Carrying Food
+    color::Symbol
 end
 
 function setup_ants_world(;
     visual_distance = 5.0,
-    population = 55,
-    speed = 0.1,
+    population = 50,
+    speed = 0.5,
     spacing = visual_distance / 1.5,
     extent = (30, 30),
     seed = 42,
@@ -25,6 +26,7 @@ function setup_ants_world(;
 
     properties = Dict(
     :sugar_model => sugar_model,
+    :tick => 1,
     )
 
     model = ABM(
@@ -33,10 +35,12 @@ function setup_ants_world(;
     scheduler = Schedulers.randomly,
     properties = properties,
     rng = myRng)
+
     for ag in 1:population
-        vel = Tuple(rand(model.rng, 2) * 2 .- 1)
-        pos = (rand(model.rng, 1:100, 2)..., 1)
-        add_agent!(model, vel, speed, 0,  )
+        #vel = Tuple(rand(model.rng, 2) * 2 .- 1)
+        vel = Tuple((0,0))
+        pos = Tuple((15.0,15.0))
+        add_agent!(pos, model, vel, speed, 0, :black )
     end
 
     return model
@@ -52,8 +56,11 @@ function all_model_step!(ants_model, sugar_model)
 end
 
 # ANTS AGENT STEP
-function ants_model_step!( model)
+function ants_model_step!(model)
+    model.tick += 1
+    #print("step $(model.tick)")
 end
+
 
 function ants_agent_step!(ant, model)
     sugar_model = model.sugar_model
@@ -62,12 +69,12 @@ function ants_agent_step!(ant, model)
     ipos_x =  ipos[1]
     ipos_y = ipos[2]
 
+    # Random walk to search food or pheromone
     if ant.state == 0
-
         #print("move $(ant.pos) transformed to ($ipos_x $ipos_y) \n")
-
-        # Look for food
+        # Look for food on patch
         if sugar_model.sugar_landscape[ipos_x, ipos_y] == 1
+            ant.color = :red
             #print("Found sugar at  $(sugar_model.sugar_landscape[pos_x, pos_y])")
             sugar_model.sugar_landscape[ipos_x, ipos_y] = 0
             sugar_model.chemical_landscape[ipos_x, ipos_y] += 60.0
@@ -78,19 +85,54 @@ function ants_agent_step!(ant, model)
             chemical = sugar_model.chemical_landscape[ipos_x, ipos_y]
             if (chemical >= 0.05) && (chemical < 2)
                 # pos = go to strongest value
-                new_pos = pos_on_chemical_descent(ipos,sugar_model)
-                ant.vel = sign.(new_pos .- ant.pos)
-                move_agent!(ant, model, ant.speed)
+                ant.color = :orange
+                new_pos = pos_on_chemical_descent(ipos,sugar_model).+ rand(model.rng, Float64)
+                ant.vel = (new_pos .- ant.pos)
             else
+                ant.color = :black
                 # pos = random move
-                new_pos = get_any_xy(ipos,sugar_model)
-                ant.vel = new_pos .- ant.pos
-                move_agent!(ant, model, ant.speed)
-            end
-        end
+                if mod(model.tick, 5) == 0
+                    #print("modulo tick = $(model.tick) \n")
+                    new_pos = get_any_xy(ipos,sugar_model).+ rand(model.rng, Float64)
+                    ant.vel = new_pos .- ant.pos
+                end
+                if ipos_y >= 29 || ipos_y <= 1 || ipos_x <= 1 || ipos_x >= 29
+                    if ipos_x <= 1
+                        ant.vel = (-ant.vel[1],ant.vel[2])
+                    end
+                    if ipos_x >= 29
+                        ant.vel = (-ant.vel[1],ant.vel[2])
+                    end
+                    if ipos_y <= 1
+                        ant.vel = (ant.vel[1],-ant.vel[2])
+                    end
+                    if ipos_y >= 29
+                        ant.vel = (ant.vel[1],-ant.vel[2])
+                    end
+                end
 
+            end
+
+            print(" Before = Ant $(ant.id) move at step $(model.tick) and speed $(ant.speed) to $(ant.pos)\n")
+            if ant.pos[1] <= ant.speed
+                ant.pos = (1.0,ant.pos[2])
+            end
+            if ant.pos[2] <= ant.speed
+                ant.pos = (ant.pos[1],1.0)
+            end
+
+            if ant.pos[1] >= 29.0
+                ant.pos = ( 29.0 , ant.pos[2])
+            end
+            if ant.pos[2] >= 29.0
+                ant.pos = (ant.pos[1], 29.0)
+            end
+            print("After = Ant $(ant.id) move at step $(model.tick) and speed $(ant.speed) to $(ant.pos)\n")
+
+            move_agent!(ant, model, ant.speed)
+        end
     else
-        new_pos = pos_on_nest_descent(ipos, sugar_model)
+        new_pos = pos_on_nest_descent(ipos, sugar_model).+ rand(model.rng, Float64)
         ant.vel = sign.(new_pos .- ant.pos)
         #if (atan(ant.vel[2], ant.vel[1])) != 0.0
         #    print("rotate to angle :  $(atan(ant.vel[2], ant.vel[1])) \n")
@@ -98,8 +140,10 @@ function ants_agent_step!(ant, model)
         sugar_model.chemical_landscape[ipos_x, ipos_y] += 60.0
         move_agent!(ant, model, ant.speed)
        #pos_x, pos_y = ant.pos
+
        if sugar_model.is_nest_landscape[ipos_x,ipos_y] == 1
-          print("I'm back to nest")
+          #print("I'm back to nest \n")
+          ant.color = :black
           ant.state = 0
        end
     end
@@ -117,7 +161,6 @@ model = setup_ants_world()
 using CairoMakie
 using InteractiveDynamics
 
-
 ## DISPLAY ##
 
 const ants_polygon = Polygon(Point2f0[(-0.2, -0.2), (0.5, 0), (-0.2, 0.2)])
@@ -126,9 +169,13 @@ function ants_marker(b::Ants)
    scale(rotate2D(ants_polygon, φ), 2)
 end
 
+function ants_color(b::Ants)
+   return b.color
+end
+
 plotkwargs = (
     am = ants_marker,
-    ac=:red,
+    ac = ants_color,
 )
 fig, abmstepper = abm_plot(model; resolution = (800, 600), plotkwargs...)
 obs_sugar = Observable(model.sugar_model.sugar_landscape)
@@ -153,7 +200,7 @@ fig
 # map tuple julia> map( t -> ((z,(x,y)) = t; (Float16(x), Float16(y))), u)
 
 record(fig, "ants.mp4"; framerate = 20) do io
-    for j in 0:300 # = total number of frames
+    for j in 0:500 # = total number of frames
         recordframe!(io) # save current state
         # This updates the abm plot:
         all_model_step!(model, model.sugar_model)

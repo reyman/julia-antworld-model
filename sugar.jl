@@ -36,7 +36,8 @@ end
 ## HELPERS
 
 function to_continue(grid_pos,sugar_model)
-    return Float64.(grid_pos)
+    float_pos = Float64.(grid_pos).- 1.0
+    return float_pos
 end
 
 function to_grid(ant_pos, sugar_model)
@@ -47,16 +48,19 @@ end
 
 function get_any_xy(discrete_pos,sugar_model)
     # todo : rng ?
-    front_neighbors = nearby_positions(discrete_pos, sugar_model, 1)
-    return to_continue(first(shuffle!(collect(front_neighbors))),sugar_model)
+    neighbors = nearby_positions(discrete_pos, sugar_model, 1)
+    collected_neighbors = collect(neighbors)
+    #print("neighbors = $(collected_neighbors)")
+    return to_continue(first(shuffle!(collected_neighbors)),sugar_model)
 end
 
 
 function pos_on_chemical_descent(discrete_pos,sugar_model)
-    front_neighbors = nearby_positions(discrete_pos, sugar_model, 1)
+    front_neighbors = nearby_positions(discrete_pos, sugar_model, 2)
     #print("front_neighbors =  $front_neighbors \n")
     val_landscape_neighbors = ((sugar_model.chemical_landscape[x,y], (x,y)) for (x, y) in front_neighbors)
     result = reduce( (x,y) -> x[1] > y[1] ? x : y , val_landscape_neighbors)
+    #print("Max chemical for $(discrete_pos) is =  $(result[2]) with $(result[1]) \n")
     return to_continue(result[2], sugar_model)
 end
 
@@ -95,7 +99,7 @@ function setup_sugar_world(;
     dims = (30, 30),
     peaks = ((20,20),(10,10)),
     evaporationRate = 10,
-    diffusionRate = 50,
+    diffusionRate = 70,
     seed = 42,
     )
 

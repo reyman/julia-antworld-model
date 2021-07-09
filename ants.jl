@@ -80,6 +80,7 @@ function ants_agent_step!(ant, model)
         else
             # food not found, try to follow some chemical path based on value here
             chemical = sugar_model.chemical_landscape[ipos_x, ipos_y]
+            # TODO : free value, need to be parametred            
             if (chemical >= 0.05) && (chemical < 2)
                 # pos = go to strongest value
                 ant.color = :orange

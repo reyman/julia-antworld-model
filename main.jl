@@ -106,4 +106,4 @@ function main_ants(population, evaporationRate, diffusionRate, seed, stopWhenSug
 end
 
 # Testing
-#main_ants(150, 10, 40, 42, 30 )
+#main_ants(250, 2, 30, 42, 30 )

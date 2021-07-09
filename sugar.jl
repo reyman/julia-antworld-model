@@ -6,6 +6,8 @@ mutable struct Cell <: AbstractAgent
     #nest::Bool
 end
 
+## BUILD LANDSCAPES
+
 function init_sugar_landscape(landscape, peaks, model)
     for (x,y) in peaks
         landscape[x, y] = 1
@@ -31,7 +33,7 @@ function init_nest_landscape(nest_descent_landscape, is_nest_landscape, pos, mod
 
 end
 
-## HELPERS
+## HELPERS FUNCTION GRID <-> CONTINUE
 
 function to_continue(grid_pos,sugar_model)
     float_pos = Float64.(grid_pos).- 1.0
@@ -44,14 +46,16 @@ function to_grid(ant_pos, sugar_model)
     return (Int(discrete_x), Int(discrete_y))
 end
 
-function get_any_xy(discrete_pos,sugar_model)
-    # todo : rng ?
+## HELPERS FUNCTION LOCAL SPACE
+
+function get_any_xy(discrete_pos,sugar_model, rng)
     neighbors = nearby_positions(discrete_pos, sugar_model, 1)
     collected_neighbors = collect(neighbors)
     #print("neighbors = $(collected_neighbors)")
-    return to_continue(first(shuffle!(collected_neighbors)),sugar_model)
+    return to_continue(first(shuffle!(rng, collected_neighbors)),sugar_model)
 end
 
+## GRADIENT DESCENT
 
 function pos_on_chemical_descent(discrete_pos,sugar_model)
     front_neighbors = nearby_positions(discrete_pos, sugar_model, 1)
@@ -73,7 +77,7 @@ function pos_on_nest_descent(discrete_pos, sugar_model)
     return to_continue(result[2],sugar_model)
 end
 
-## DIFFUSE
+## DIFFUSE and EVAPORATE
 
 function evaporate_chemical!(pos,model)
     model.chemical_landscape[pos...] =
@@ -135,6 +139,7 @@ function setup_sugar_world(myRng::MersenneTwister,
 
 end
 
+## SUGAR STEP ##
 function sugar_model_step!(sugar_model)
     for p in positions(sugar_model)
         diffuse_chemical!(p, sugar_model)

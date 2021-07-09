@@ -8,12 +8,10 @@ end
 
 function init_sugar_landscape(landscape, peaks, model)
     for (x,y) in peaks
-        pos = random_position(model)
-        landscape[pos[1], pos[2]] = 1
-        neighbors = nearby_positions(pos , model, 3)
+        landscape[x, y] = 1
+        neighbors = nearby_positions((x,y) , model, 2)
          for neighbor in neighbors
              landscape[neighbor[1], neighbor[2]] = 1
-             #sugar_capacities[x, y]
          end
     end
     return landscape
@@ -56,7 +54,7 @@ end
 
 
 function pos_on_chemical_descent(discrete_pos,sugar_model)
-    front_neighbors = nearby_positions(discrete_pos, sugar_model, 2)
+    front_neighbors = nearby_positions(discrete_pos, sugar_model, 1)
     #print("front_neighbors =  $front_neighbors \n")
     val_landscape_neighbors = ((sugar_model.chemical_landscape[x,y], (x,y)) for (x, y) in front_neighbors)
     result = reduce( (x,y) -> x[1] > y[1] ? x : y , val_landscape_neighbors)
@@ -85,25 +83,22 @@ end
 function diffuse_chemical!(pos, model)
     ratio = model.diffusionRate / 100
     npos = nearby_positions(pos, model)
+    # Each neighbor is giving up 1/8 of the diffused
+    # amount to each of *its* neighbors
     model.chemical_landscape[pos...] =
         (1 - ratio) * model.chemical_landscape[pos...] +
-        # Each neighbor is giving up 1/8 of the diffused
-        # amount to each of *its* neighbors
         sum(model.chemical_landscape[p...] for p in npos) * 0.125 * ratio
 end
 
 ## SETUP ##
 
-function setup_sugar_world(;
-    nest = (20, 20),
-    dims = (30, 30),
-    peaks = ((20,20),(10,10)),
-    evaporationRate = 10,
-    diffusionRate = 70,
-    seed = 42,
+function setup_sugar_world(myRng::MersenneTwister,
+    peaks,
+    nest,
+    dims,
+    evaporationRate,
+    diffusionRate,
     )
-
-    myRng = Random.MersenneTwister(seed)
 
     sugar_space = GridSpace(dims, periodic = false)
 
@@ -118,7 +113,9 @@ function setup_sugar_world(;
     :sugar_landscape => sugar_landscape,
     :chemical_landscape => chemical_landscape,
     :nest_descent_landscape => nest_descent_landscape,
-    :is_nest_landscape => is_nest_landscape
+    :is_nest_landscape => is_nest_landscape,
+    :dims => dims,
+    :nest => nest,
     )
 
     model = ABM(
@@ -132,11 +129,7 @@ function setup_sugar_world(;
     init_sugar_landscape(model.sugar_landscape, peaks, model)
 
     #init nest and gradient to nest
-    init_nest_landscape(model.nest_descent_landscape, model.is_nest_landscape, nest,model)
-
-    #for ag in 1:population
-    #    add_agent_single!(model, 0 )
-    #end
+    init_nest_landscape(model.nest_descent_landscape, model.is_nest_landscape, nest, model)
 
     return model
 

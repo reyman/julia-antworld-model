@@ -12,15 +12,15 @@ mutable struct Ants <: AbstractAgent
     color::Symbol
 end
 
-function setup_ants_world(;
+function setup_ants_world(
+    myRng::MersenneTwister,
+    sugar_model;
+    visual_distance = 5,
     population = 125,
     speed = 0.2,
     spacing = visual_distance / 1.5,
-    extent = (30, 30),
-    seed = 42,
-    sugar_model = setup_sugar_world())
+    extent = (70, 70),)
 
-    myRng = Random.MersenneTwister(seed)
     ant_space = ContinuousSpace(extent, spacing, periodic = false )
 
     properties = Dict(
@@ -38,7 +38,7 @@ function setup_ants_world(;
     for ag in 1:population
         #vel = Tuple(rand(model.rng, 2) * 2 .- 1)
         vel = Tuple((0,0))
-        pos = Tuple((15.0,15.0))
+        pos = Tuple(sugar_model.nest)
         add_agent!(pos, model, vel, speed, 0, :black )
     end
 
@@ -68,6 +68,9 @@ function ants_agent_step!(ant, model)
     ipos_x =  ipos[1]
     ipos_y = ipos[2]
 
+    dims_x = sugar_model.dims[1] - 1
+    dims_y = sugar_model.dims[2] - 1
+
     # Random walk to search food or pheromone
     if ant.state == 0
         #print("move $(ant.pos) transformed to ($ipos_x $ipos_y) \n")
@@ -89,30 +92,31 @@ function ants_agent_step!(ant, model)
                 ant.vel = (new_pos .- ant.pos)
             else
                 ant.color = :black
+
                 # pos = random move
                 if mod(model.tick, 10) == 0
                     #print("modulo tick = $(model.tick) \n")
                     new_pos = get_any_xy(ipos,sugar_model).+ rand(model.rng, Float64)
                     ant.vel = new_pos .- ant.pos
                 end
-                if ipos_y >= 29 || ipos_y <= 1 || ipos_x <= 1 || ipos_x >= 29
+                if ipos_y >= dims_y || ipos_y <= 1 || ipos_x <= 1 || ipos_x >= dims_x
                     if ipos_x <= 1
                         ant.vel = (-ant.vel[1],ant.vel[2])
                     end
-                    if ipos_x >= 29
+                    if ipos_x >= dims_x
                         ant.vel = (-ant.vel[1],ant.vel[2])
                     end
                     if ipos_y <= 1
                         ant.vel = (ant.vel[1],-ant.vel[2])
                     end
-                    if ipos_y >= 29
+                    if ipos_y >= dims_y
                         ant.vel = (ant.vel[1],-ant.vel[2])
                     end
                 end
 
             end
 
-            print(" Before = Ant $(ant.id) move at step $(model.tick) and speed $(ant.speed) to $(ant.pos)\n")
+            #print(" Before = Ant $(ant.id) move at step $(model.tick) and speed $(ant.speed) to $(ant.pos)\n")
             if ant.pos[1] <= ant.speed + 1
                 ant.pos = (1.0, ant.pos[2])
             end
@@ -120,13 +124,13 @@ function ants_agent_step!(ant, model)
                 ant.pos = (ant.pos[1], 1.0)
             end
 
-            if ant.pos[1] >= 29.0 - ant.speed
-                ant.pos = ( 29.0 , ant.pos[2])
+            if ant.pos[1] >= Float64.(dims_x) - ant.speed
+                ant.pos = ( Float64.(dims_x) , ant.pos[2])
             end
-            if ant.pos[2] >= 29.0 - ant.speed
-                ant.pos = (ant.pos[1], 29.0)
+            if ant.pos[2] >= Float64.(dims_y) - ant.speed
+                ant.pos = (ant.pos[1], Float64.(dims_y))
             end
-            print("After = Ant $(ant.id) move at step $(model.tick) and speed $(ant.speed) to $(ant.pos)\n")
+            #print("After = Ant $(ant.id) move at step $(model.tick) and speed $(ant.speed) to $(ant.pos)\n")
 
             move_agent!(ant, model, ant.speed)
         end
@@ -202,10 +206,10 @@ function init_fig(model, observable)
 
 end
 
-function run(model,observable,dorecord)
+function myrun(model,observable,dorecord)
 
     # Stop condition
-    rununtil(model, s) = sum(model.sugar_model.sugar_landscape) == 10
+    rununtil(model, s) = sum(model.sugar_model.sugar_landscape) == 20
     count_sugar(model) = sum(model.sugar_landscape)
 
     fig, abmstepper = init_fig(model, observable)
@@ -220,6 +224,7 @@ function run(model,observable,dorecord)
     record(fig, "ants.mp4"; framerate = 20) do io
 
         while Agents.until(s, rununtil, model)
+            print("sugar remaining on world =  $(sum(model.sugar_model.sugar_landscape)) \n")
             recordframe!(io) # save current state
             if Agents.should_we_collect(s, model, true)
                 Agents.collect_agent_data!(df_agent, model, adata, s)
@@ -241,11 +246,17 @@ function run(model,observable,dorecord)
     print("mdata = $(mdata)")
 end
 
-model = setup_ants_world()
 
-obs_sugar = Observable(model.sugar_model.sugar_landscape)
-obs_chemical = Observable(model.sugar_model.chemical_landscape)
-obs_descent = Observable(model.sugar_model.nest_descent_landscape)
+
+
+myGlobalRandomG = Random.MersenneTwister(42)
+# ((50,45),(15,15),(15,45))
+sugar_model = setup_sugar_world(myGlobalRandomG, ((50,45),(15,15),(15,45)), (35, 35), (70,70),  10,  50)
+ant_model = setup_ants_world(myGlobalRandomG, sugar_model, population = 400, extent=(70,70))
+
+obs_sugar = Observable(sugar_model.sugar_landscape)
+obs_chemical = Observable(sugar_model.chemical_landscape)
+obs_descent = Observable(sugar_model.nest_descent_landscape)
 observable = [obs_sugar,obs_chemical,obs_descent]
 
-run(model,observable,true)
+myrun(ant_model, observable,true)

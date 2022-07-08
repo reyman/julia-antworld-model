@@ -19,15 +19,15 @@ const ants_polygon = Polygon(Point2f0[(-0.2, -0.2), (0.5, 0), (-0.2, 0.2)])
 function init_fig(model, observable)
 
     function ants_marker(b::Ants)
-        ^f = atan(b.vel[2], b.vel[1]) #+  ^`/2 +  ^`
-       scale(rotate2D(ants_polygon,  ^f), 2)
+        f = atan(b.vel[2], b.vel[1])
+        scale(rotate2D(ants_polygon,  f), 2)
     end
 
     function ants_color(b::Ants)
        return b.color
     end
 
-    fig, abmstepper, abmobs = abmplot(model; agent_step! = ants_agent_step!,model_step! = ants_model_step!, am= ants_marker, ac=ants_color)
+    fig, axis, abmobs = abmplot(model; agent_step! = ants_agent_step!,model_step! = ants_model_step!, am= ants_marker, ac=ants_color)
 
 
     ax, hm = heatmap(fig[1,2], observable[1]; colormap=cgrad(:thermal))
@@ -43,7 +43,7 @@ function init_fig(model, observable)
     Colorbar(fig[1, 3], hm, width = 20,tellheight=false)
     rowsize!(fig.layout, 1 , ax.scene.px_area[].widths[2])
 
-    return (fig, abmstepper, abmobs)
+    return (fig, axis, abmobs)
 
 end
 
@@ -53,7 +53,7 @@ function myrun(model,observable,stopWhenSugarEqual, dorecord)
     rununtil(model, s) = sum(model.sugar_model.sugar_landscape) == stopWhenSugarEqual
     count_sugar(model) = sum(model.sugar_landscape)
 
-    fig, abmstepper, abmobs = init_fig(model, observable)
+    fig, axis, abmobs = init_fig(model, observable)
     adata = [:state]
     mdata = [count_sugar]
     df_agent = init_agent_dataframe(model, adata)
@@ -90,7 +90,7 @@ end
 
 function main_ants(population, evaporationRate, diffusionRate, seed, stopWhenSugarEqual)
 
-    myGlobalRandomG = Random.MersenneTwister(seed)
+    myGlobalRandomG = Random.MersenneTwister(abs(seed))
 
     sugar_model = setup_sugar_world(myGlobalRandomG, ((50,45), (15,15), (15,45)), (35, 35), (70,70),  evaporationRate,  diffusionRate)
     ant_model = setup_ants_world(myGlobalRandomG, sugar_model, population)
@@ -106,5 +106,11 @@ function main_ants(population, evaporationRate, diffusionRate, seed, stopWhenSug
 
 end
 
-# Testing
-main_ants(ARGS[1], ARGS[2], ARGS[3], ARGS[4], ARGS[5] )
+# OpenMOLE part
+print("pop  =  $(pop) \n")
+print("evaporation  =  $(evaporationRate) \n")
+print("diffusion  =  $(diffusionRate) \n")
+print("seed  =  $(seed) \n")
+print("stop  =  $(stop) \n")
+
+main_ants(pop, evaporationRate, diffusionRate, seed, stop)
